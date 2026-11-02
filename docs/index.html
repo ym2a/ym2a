@@ -176,7 +176,7 @@ function item([n,task,ot,h]){
   const seg=el("div",{class:"seg",role:"group","aria-label":"État des travaux"},ETATS.map(([v,l])=>el("button",{"data-v":v,id:`etat-${n}-${v}`,"aria-pressed":String(s.etat===v),...(dis?{disabled:""}:{}),onclick:()=>save(n,{etat:v})},l)));
   const foot=[];
   if(isAlert(s))foot.push(el("span",{class:"flag"},"⚠ Travaux démarrés sans permis ou sans Stop 5"));
-  if(s.at)foot.push(el("span",{},`Modifié à ${hhmm(s.at)}`+(s.by?` par ${s.by}`:"")));
+  if(s.by||s.at)foot.push(el("span",{},(s.by?`Validé par ${s.by}`:"Modifié")+(s.at?` à ${hhmm(s.at)}`:"")));
   const note=el("input",{class:"note",id:`note-${n}`,placeholder:"Remarque (optionnel)",value:s.note||"",...(dis?{disabled:""}:{})});
   note.addEventListener("change",()=>save(n,{note:note.value.trim()}));
   return el("article",{class:"it"+(isAlert(s)?" alert":"")},
