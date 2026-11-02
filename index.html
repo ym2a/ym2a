@@ -85,9 +85,12 @@ header::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px
 .link{border:0;background:none;color:var(--act);font:inherit;font-size:14px;font-weight:600;padding:6px 4px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 
 /* ---------- Barre de vue ---------- */
-.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--idle-bg);border-radius:12px;padding:4px;margin-top:14px}
-.seg button{font:inherit;font-size:15px;font-weight:600;border:0;border-radius:9px;padding:10px;background:none;color:var(--muted);cursor:pointer}
-.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.segbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:8;background:var(--bg);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-left,0px)) 8px;margin-top:6px}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--idle-bg);border-radius:12px;padding:4px}
+.seg button{font:inherit;font-size:15px;font-weight:600;border:0;border-radius:9px;padding:10px 6px;line-height:1.2;background:none;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--act);color:var(--act-ink);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.seg button:disabled{opacity:.45;cursor:not-allowed}
+.seg button small{display:block;font-size:12px;font-weight:500;opacity:.85}
 .sync{font-size:12px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:6px}
 .sync i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
 
@@ -187,9 +190,9 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--act);outline-of
     <button class="link" id="me-edit">Changer</button>
   </div>
 
-  <div class="seg" id="seg">
-    <button id="v-mine" aria-pressed="true">Mon équipe</button>
-    <button id="v-all" aria-pressed="false">Tout le chantier</button>
+  <div class="segbar"><div class="seg" id="seg">
+    <button id="v-mine" aria-pressed="true">Mon équipe<small id="c-mine"></small></button>
+    <button id="v-all" aria-pressed="false">Tout le planning<small id="c-all"></small></button></div>
   </div>
   <div class="sync" id="sync"><i></i>À jour · se met à jour tout seul</div>
 
@@ -248,10 +251,10 @@ function renderMe(){
   const has=me.name&&me.team;
   document.getElementById("onboard").hidden=!!has;
   document.getElementById("hello").hidden=!has;
-  document.getElementById("seg").hidden=!has;
+  document.getElementById("v-mine").disabled=!has;if(!has)view="all";
   if(!has){
     nameIn.value=me.name||"";
-    document.getElementById("teams").replaceChildren(...TEAMS.map(t=>el("button",{class:"tbtn","aria-pressed":String(me.team===t.k),onclick:()=>{me.team=t.k;renderMe();}},
+    document.getElementById("teams").replaceChildren(...TEAMS.map(t=>el("button",{class:"tbtn","aria-pressed":String(me.team===t.k),onclick:()=>{me.team=t.k;renderMe();render();}},
       el("span",{class:"sw",style:"background:"+t.c}),el("span",{},el("b",{},t.short),el("span",{class:"nm"},t.who),el("small",{},t.zone+" · "+JOBS.filter(j=>j[2]===t.k).length+(JOBS.filter(j=>j[2]===t.k).length>1?" interventions":" intervention"))))));
     return;
   }
@@ -270,14 +273,16 @@ document.getElementById("me-ok").onclick=()=>{
   try{if(!DEMO)localStorage.setItem("ely-me",JSON.stringify(me));}catch(e){}
   view="mine";renderMe();render();
 };
-document.getElementById("me-edit").onclick=()=>{me.team="";renderMe();};
-document.getElementById("v-mine").onclick=()=>{view="mine";kfilter=null;render();};
-document.getElementById("v-all").onclick=()=>{view="all";render();};
+document.getElementById("me-edit").onclick=()=>{me.team="";renderMe();render();};
+document.getElementById("v-mine").onclick=()=>{if(!me.team)return;view="mine";kfilter=null;render();window.scrollTo({top:document.querySelector(".segbar").offsetTop-4,behavior:"smooth"});};
+document.getElementById("v-all").onclick=()=>{view="all";kfilter=null;render();window.scrollTo({top:document.querySelector(".segbar").offsetTop-4,behavior:"smooth"});};
 
 /* ---------- Rendu ---------- */
 function render(){
   document.getElementById("v-mine").setAttribute("aria-pressed",String(view==="mine"));
   document.getElementById("v-all").setAttribute("aria-pressed",String(view==="all"));
+  document.getElementById("c-all").textContent=JOBS.length+" interventions";
+  document.getElementById("c-mine").textContent=me.team?JOBS.filter(j=>j[2]===me.team).length+" interventions":"choisis ton équipe";
   const scope=JOBS.filter(j=>view==="all"||!me.team||j[2]===me.team);
   const done=scope.filter(j=>st(j[0]).etat==="termine").length;
   const enc=scope.filter(j=>st(j[0]).etat==="encours").length;
