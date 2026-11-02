@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Validation ELY LOOS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: bandeau sticky avec avancement, puis cartes par équipe (bande couleur du planning papier), une ligne par intervention */
+:root{
+  --bg:#eef0f2; --surface:#ffffff; --ink:#1b2128; --muted:#5d6874; --line:#d5dade;
+  --band:#f5c400; --band-ink:#1b2128; --accent:#1d5fbf;
+  --ok:#1f8a4c; --ok-bg:#e2f3e8; --warn:#b26a00; --warn-bg:#fdf0d9; --bad:#c0282d; --bad-bg:#fbe3e3; --idle-bg:#eceff2;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161b; --surface:#1b2128; --ink:#e7ebef; --muted:#97a2ad; --line:#2d353e;
+  --band:#e2b700; --band-ink:#14181d; --accent:#6aa4ff;
+  --ok:#5fcf8d; --ok-bg:#163424; --warn:#f0b04a; --warn-bg:#3a2b12; --bad:#ff7b7f; --bad-bg:#3d1a1c; --idle-bg:#252c34; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161b; --surface:#1b2128; --ink:#e7ebef; --muted:#97a2ad; --line:#2d353e;
+  --band:#e2b700; --band-ink:#14181d; --accent:#6aa4ff;
+  --ok:#5fcf8d; --ok-bg:#163424; --warn:#f0b04a; --warn-bg:#3a2b12; --bad:#ff7b7f; --bad-bg:#3d1a1c; --idle-bg:#252c34; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.4}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--band)}
+.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--band);color:var(--band-ink);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:12px max(16px,env(safe-area-inset-left,0px)) 10px}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;opacity:.75}
+h1{font-family:var(--display);font-size:28px;line-height:1.05;margin:2px 0 8px;text-wrap:balance;letter-spacing:.01em}
+.stats{display:flex;gap:14px;flex-wrap:wrap;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600}
+.bar{height:6px;border-radius:3px;background:rgba(0,0,0,.15);margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--band-ink);width:0;transition:width .3s}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 4px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:500;padding:6px 12px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.chip .n{opacity:.7;margin-left:4px;font-variant-numeric:tabular-nums}
+.teamsel{display:flex;align-items:center;gap:10px;margin-top:14px}
+.teamsel label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--muted)}
+.teamsel select{flex:1;min-width:0;font:inherit;font-size:15px;font-weight:500;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.who{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.who label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--muted)}
+.who input{flex:1;min-width:160px;font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.who.missing input{border-color:var(--bad);background:var(--bad-bg)}
+.sync{font-size:12px;color:var(--muted);margin-top:6px}
+.notice{margin:12px 0;padding:10px 12px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:13px}
+.team{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.team-h{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.sw{width:14px;height:14px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.15)}
+.team-h b{font-family:var(--display);font-size:19px;letter-spacing:.02em;min-width:0}
+.team-h span{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.section-band{margin-top:26px;background:var(--band);color:var(--band-ink);font-family:var(--display);font-size:17px;letter-spacing:.06em;padding:6px 12px;border-radius:6px;text-transform:uppercase}
+.it{padding:12px;border-top:1px solid var(--line);display:grid;gap:10px}
+.it:first-of-type{border-top:0}
+.it.alert{background:var(--bad-bg)}
+.top{display:flex;gap:10px;align-items:baseline}
+.num{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:22px}
+.task{font-weight:600;min-width:0;flex:1}
+.meta{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-left:32px}
+.meta .ot{font-family:var(--mono)}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-left:32px}
+.tg{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--idle-bg);color:var(--ink);font:inherit;font-size:13px;font-weight:500;padding:7px 11px;border-radius:7px;cursor:pointer}
+.tg::before{content:"";width:14px;height:14px;border-radius:3px;border:1.5px solid var(--muted);flex:none}
+.tg[aria-pressed="true"]{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.tg[aria-pressed="true"]::before{background:var(--ok);border-color:var(--ok);box-shadow:inset 0 0 0 2px var(--ok-bg)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;font-weight:500;border:0;border-left:1px solid var(--line);background:var(--surface);color:var(--muted);padding:7px 10px;cursor:pointer}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"][data-v="afaire"]{background:var(--idle-bg);color:var(--ink)}
+.seg button[aria-pressed="true"][data-v="encours"]{background:var(--warn-bg);color:var(--warn)}
+.seg button[aria-pressed="true"][data-v="termine"]{background:var(--ok-bg);color:var(--ok)}
+.seg button[aria-pressed="true"][data-v="reporte"]{background:var(--bad-bg);color:var(--bad)}
+.foot{margin-left:32px;font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.flag{color:var(--bad);font-weight:600}
+.note{margin-left:32px;width:calc(100% - 32px);font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{cursor:not-allowed;opacity:.55}
+.empty{padding:14px 12px;color:var(--muted);font-size:13px}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Triangle · Kuhlmann Loos · Permis au DCS Bungalow</div>
+    <h1>Planning ELY LOOS · lundi 2 novembre</h1>
+    <div class="stats" id="stats"></div>
+    <div class="bar"><i id="barfill"></i></div>
+  </header>
+  <div class="who" id="who"><label for="me-name">Ton nom</label><input id="me-name" autocomplete="name" placeholder="Ex. Samir LABADI"></div>
+  <div class="sync" id="sync">Chargement des validations…</div>
+  <div id="notice" class="notice" hidden></div>
+  <div class="teamsel"><label for="team-select">Équipe</label><select id="team-select"></select></div>
+  <div class="filters" id="filters"></div>
+  <main id="list"></main>
+</div>
+
+<script>
+// Adresse du script Google (Apps Script) qui lit et écrit dans le Google Sheets
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbxc2D4LiKKRjZh5vORQK3wUR4MMJ6kkVrFHGqG5dNmPMhDkVgNCVsRj0ER4Cx66I-0/exec";
+const TEAMS=[
+ {who:"Équipe à préciser",c:"#F8CBAD",rows:[[1,"Mise en place des tuyauteries dans le rack","4021621","8h"]]},
+ {who:"HARIZI Salah · BOUHAOUACHE Chokry",c:"#7F7F7F",rows:[[2,"Remplacement tuyau entre le GR et KOH","4021621","8h"]]},
+ {who:"FERJANI Aymen · HAJJI Mounir",c:"#E6A6D9",rows:[[3,"Remplacement tuyau entre le GR et la fosse camion","4021621","8h"]]},
+ {who:"NASRALLAH Ahmed · TRABELSI Ismael",c:"#F4B183",rows:[[5,"Remplacement KOH vers MS3701 ELY A","4021763","8h"]]},
+ {who:"LABADI Samir · MIHOUB",c:"#C5D9F1",rows:[[4,"Ouverture et fermeture tuy condensat chlore","4028462","9h"],[6,"Ouv./ferm. chapeau chinois anolyte ALY A","4023217","13h"],[7,"Ouv./ferm. chapeau chinois catholyte ALY A","4023218","13h"],[8,"Ouv./ferm. chapeau chinois anolyte ALY B","4023219","14h"],[9,"Ouv./ferm. chapeau chinois catholyte ALY B","4023220","14h"]]},
+ {who:"ARIFA Wael · THABET Seghair",c:"#C6E0B4",rows:[[10,"Remplacement TT2501","4027171","13h"],[11,"Remplacement vanne B25116","4027758","13h"]]},
+ {who:"CHAMTOURI Oualid · LIWA",c:"#5B9BD5",rows:[[12,"Remplacement GMP PP2501A","4018763","9h"],[13,"Remplacement vanne VL25011","4023485","8h"],[14,"Remplacement GMP PP1501","4021801","8h"]]},
+ {who:"DALAGI Becir · BEN HASSINE Mohamed Amine",c:"#548235",rows:[[15,"Remplacement vanne VL12292","4026790","10h"],[16,"Remplacement vanne B12266","4027495","13h"],[17,"Dépose/pose divers sur GF1303","4018595","8h"],[18,"Remplacement joint vanne VL13012","4027602","8h"],[19,"Remplacement disque rupture GF1303","4027937","12h"]]},
+ {who:"WATTEAU Matthieu · BOUVET Rodrigue",c:"#BFBFBF",rows:[[20,"Remplacement de la vanne B13094","4026791","8h"],[21,"Remplacement joint tuyauterie / vanne B13101","4023212","8h"],[22,"Remplacement RO35003","4010961","13h"],[23,"Mise en place des tuyauteries dans le rack","4023972","9h"],[24,"Ouverture/fermeture MS3701","4024146","8h"],[25,"Ouverture/fermeture MS3701","4024146","13h"]]},
+ {band:"Ferrique et Cafein"},
+ {who:"ALLOUCHE Rajeb · LABADI Nacer",c:"#BFBFBF",rows:[[26,"Nettoyage turbine pompe FP5860","4027679","8h"],[27,"Nettoyage turbine pompe PP5301","4027680","8h"],[28,"Nettoyage turbine pompe PP5302","4027681","8h"],[29,"Nettoyage turbine pompe FP5821","4027682","8h"],[30,"Inversion médaille AS5501 (Cafein)","4028457","8h"],[31,"Inversion médaille AS5504 (Cafein)","4028463","8h"]]},
+];
+const ALL=TEAMS.filter(t=>t.rows).flatMap(t=>t.rows.map(r=>r[0]));
+const ETATS=[["afaire","À faire"],["encours","En cours"],["termine","Terminé"],["reporte","Reporté"]];
+const id=n=>"i"+String(n).padStart(2,"0");
+let state={}, filter="tout", team="all", meName="", pending=0, lastSync=null;
+const CODE={"À faire":"afaire","En cours":"encours","Terminé":"termine","Reporté":"reporte"};
+const LABEL=Object.fromEntries(Object.entries(CODE).map(([a,b])=>[b,a]));
+try{meName=localStorage.getItem("ely-name")||"";}catch(e){}
+try{team=localStorage.getItem("ely-team")||"all";}catch(e){}
+const tsel=document.getElementById("team-select");
+tsel.append(new Option("Toutes les équipes","all"));
+TEAMS.forEach((t,i)=>{if(t.rows)tsel.append(new Option(t.who+" ("+t.rows.length+")",String(i)));});
+if(![...tsel.options].some(o=>o.value===team))team="all";
+tsel.value=team;
+tsel.addEventListener("change",()=>{team=tsel.value;try{localStorage.setItem("ely-team",team);}catch(e){}render();});
+const queue={};
+
+const st=n=>Object.assign({permis:false,stop5:false,etat:"afaire",note:""},state[id(n)]||{});
+const isAlert=s=>(s.etat==="encours"||s.etat==="termine")&&(!s.permis||!s.stop5);
+
+function counts(){
+  const c={tout:ALL.length,afaire:0,encours:0,termine:0,alertes:0,permis:0};
+  ALL.forEach(n=>{const s=st(n);c[s.etat]=(c[s.etat]||0)+1;if(isAlert(s))c.alertes++;if(s.permis)c.permis++;});
+  return c;
+}
+function el(t,a={},...k){const e=document.createElement(t);for(const[x,v]of Object.entries(a)){if(x==="class")e.className=v;else if(x.startsWith("on"))e.addEventListener(x.slice(2),v);else e.setAttribute(x,v);}k.flat().forEach(c=>c!=null&&e.append(c));return e;}
+function hhmm(iso){try{return new Date(iso).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});}catch(e){return "";}}
+
+function render(){
+  const c=counts();
+  const stats=document.getElementById("stats");stats.replaceChildren(
+    el("span",{},`${c.termine}/${c.tout} terminées`),
+    el("span",{},`${c.permis}/${c.tout} permis`),
+    el("span",{},`${c.encours} en cours`),
+    c.alertes?el("span",{},`⚠ ${c.alertes} sans permis/Stop 5`):null);
+  document.getElementById("barfill").style.width=(c.termine/c.tout*100)+"%";
+
+  const F=[["tout","Tout",c.tout],["afaire","À faire",c.afaire],["encours","En cours",c.encours],["alertes","Alertes",c.alertes],["termine","Terminé",c.termine]];
+  document.getElementById("filters").replaceChildren(...F.map(([k,l,n])=>el("button",{class:"chip",id:"f-"+k,"aria-pressed":String(filter===k),onclick:()=>{filter=k;render();}},l,el("span",{class:"n"},String(n)))));
+
+  const list=document.getElementById("list");const out=[];
+  TEAMS.forEach((t,i)=>{
+    if(t.band){if(team==="all")out.push(el("div",{class:"section-band"},"Planning journalier "+t.band));return;}
+    if(team!=="all"&&team!==String(i))return;
+    const rows=t.rows.filter(([n])=>{const s=st(n);return filter==="tout"||(filter==="alertes"?isAlert(s):s.etat===filter);});
+    if(!rows.length)return;
+    const done=t.rows.filter(([n])=>st(n).etat==="termine").length;
+    out.push(el("section",{class:"team"},
+      el("div",{class:"team-h"},el("i",{class:"sw",style:"background:"+t.c}),el("b",{},t.who),el("span",{},`${done}/${t.rows.length} terminées`)),
+      rows.map(r=>item(r))));
+  });
+  if(!out.some(e=>e.classList.contains("team")))out.push(el("div",{class:"empty"},"Aucune intervention dans ce filtre."));
+  list.replaceChildren(...out);
+}
+
+function item([n,task,ot,h]){
+  const s=st(n),dis=false;
+  const tg=(k,l)=>el("button",{class:"tg",id:`${k}-${n}`,"aria-pressed":String(!!s[k]),...(dis?{disabled:""}:{}),onclick:()=>save(n,{[k]:!s[k]})},l);
+  const seg=el("div",{class:"seg",role:"group","aria-label":"État des travaux"},ETATS.map(([v,l])=>el("button",{"data-v":v,id:`etat-${n}-${v}`,"aria-pressed":String(s.etat===v),...(dis?{disabled:""}:{}),onclick:()=>save(n,{etat:v})},l)));
+  const foot=[];
+  if(isAlert(s))foot.push(el("span",{class:"flag"},"⚠ Travaux démarrés sans permis ou sans Stop 5"));
+  if(s.at)foot.push(el("span",{},`Modifié à ${hhmm(s.at)}`+(s.by?` par ${s.by}`:"")));
+  const note=el("input",{class:"note",id:`note-${n}`,placeholder:"Remarque (optionnel)",value:s.note||"",...(dis?{disabled:""}:{})});
+  note.addEventListener("change",()=>save(n,{note:note.value.trim()}));
+  return el("article",{class:"it"+(isAlert(s)?" alert":"")},
+    el("div",{class:"top"},el("span",{class:"num"},String(n)),el("span",{class:"task"},task)),
+    el("div",{class:"meta"},el("span",{class:"ot"},"OT "+ot),el("span",{},"Début "+h)),
+    el("div",{class:"ctrls"},tg("permis","Permis réalisé"),tg("stop5","Stop 5 fait"),seg),
+    note,
+    foot.length?el("div",{class:"foot"},foot):null);
+}
+
+function needName(){
+  const w=document.getElementById("who");
+  if(meName)return false;
+  w.classList.add("missing");document.getElementById("me-name").focus();
+  showNotice("Indique ton nom avant de valider, il sera noté dans le tableau.");
+  return true;
+}
+function save(n,patch){
+  if(needName())return;
+  const k=id(n);
+  const next=Object.assign(st(n),patch,{at:new Date().toISOString(),by:meName});
+  state[k]=next;render();
+  pending++;
+  const body=JSON.stringify({n,permis:!!next.permis,stop5:!!next.stop5,etat:LABEL[next.etat]||"À faire",note:next.note||"",by:meName});
+  fetch(SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body})
+    .then(r=>r.json()).then(j=>{if(!j.ok)throw new Error(j.error||"refus");hideNotice();})
+    .catch(()=>showNotice("Pas enregistré : vérifie le réseau puis recoche. La page se recharge toute seule."))
+    .finally(()=>{pending--;});
+}
+function showNotice(t){const b=document.getElementById("notice");b.textContent=t;b.hidden=false;}
+function hideNotice(){document.getElementById("notice").hidden=true;}
+
+async function load(){
+  if(pending>0)return;
+  try{
+    const r=await fetch(SCRIPT_URL+"?t="+Date.now());
+    const j=await r.json();
+    if(pending>0)return;
+    const s={};
+    (j.rows||[]).forEach(x=>{s[id(x.n)]={permis:!!x.permis,stop5:!!x.stop5,etat:CODE[x.etat]||"afaire",note:x.note||"",by:x.by||"",at:x.at||""};});
+    state=s;lastSync=new Date();render();
+    document.getElementById("sync").textContent="Synchronisé avec le tableau à "+lastSync.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})+" · mise à jour automatique";
+  }catch(e){
+    document.getElementById("sync").textContent="Impossible de joindre le tableau. Nouvel essai dans quelques secondes.";
+  }
+}
+
+const nameInput=document.getElementById("me-name");
+nameInput.value=meName;
+nameInput.addEventListener("input",()=>{meName=nameInput.value.trim();try{localStorage.setItem("ely-name",meName);}catch(e){}if(meName){document.getElementById("who").classList.remove("missing");hideNotice();}});
+
+render();
+if(SCRIPT_URL.startsWith("http")){load();setInterval(load,15000);document.addEventListener("visibilitychange",()=>{if(!document.hidden)load();});}
+else document.getElementById("sync").textContent="Page non reliée au tableau (adresse du script manquante).";
+</script>
+</body>
+</html>
