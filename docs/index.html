@@ -85,6 +85,14 @@ header::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px
 .link{border:0;background:none;color:var(--act);font:inherit;font-size:14px;font-weight:600;padding:6px 4px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 
 /* ---------- Barre de vue ---------- */
+.search{position:relative;margin-top:8px}
+.search input{width:100%;font:inherit;font-size:16px;padding:11px 44px 11px 40px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink)}
+.search input:focus{border-color:var(--act);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--act) 20%,transparent)}
+.search .ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:16px}
+.search .clr{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:var(--idle-bg);color:var(--ink);border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer}
+.qinfo{font-size:13px;color:var(--muted);margin-top:6px}
+.qinfo b{color:var(--ink)}
+mark{background:color-mix(in srgb,var(--act) 22%,transparent);color:inherit;border-radius:3px;padding:0 1px}
 .segbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:8;background:var(--bg);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-left,0px)) 8px;margin-top:6px}
 .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--idle-bg);border-radius:12px;padding:4px}
 .seg button{font:inherit;font-size:15px;font-weight:600;border:0;border-radius:9px;padding:10px 6px;line-height:1.2;background:none;color:var(--muted);cursor:pointer}
@@ -204,6 +212,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--act);outline-of
   <div class="segbar"><div class="seg" id="seg">
     <button id="v-mine" aria-pressed="true">Mon équipe<small id="c-mine"></small></button>
     <button id="v-all" aria-pressed="false">Tout le planning<small id="c-all"></small></button></div>
+    <div class="search"><span class="ico" aria-hidden="true">🔍</span><input id="q" type="search" inputmode="search" autocomplete="off" placeholder="Rechercher un OT, un repère, un équipement" aria-label="Rechercher une intervention"><button class="clr" id="q-clr" aria-label="Effacer la recherche" hidden>✕</button></div>
+    <div class="qinfo" id="qinfo" hidden></div>
   </div>
   <div class="sync" id="sync"><i></i>À jour · se met à jour tout seul</div>
 
@@ -289,13 +299,38 @@ document.getElementById("me-edit").onclick=()=>{me.team="";renderMe();render();}
 document.getElementById("v-mine").onclick=()=>{if(!me.team)return;view="mine";kfilter=null;render();window.scrollTo({top:document.querySelector(".segbar").offsetTop-4,behavior:"smooth"});};
 document.getElementById("v-all").onclick=()=>{view="all";kfilter=null;render();window.scrollTo({top:document.querySelector(".segbar").offsetTop-4,behavior:"smooth"});};
 
+/* ---------- Recherche ---------- */
+let query="";
+const norm=x=>String(x||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"").trim();
+function matchJob(j,qn){
+  const [k,rep,tk,task,ot]=j;
+  if(norm(ot).includes(qn)||norm(task).includes(qn))return true;
+  const r=qn.replace(/^(repere|rep|n°|no)/,"");
+  return r!==""&&/^\d+$/.test(r)&&r.length<=2&&rep===r;
+}
+function hl(text){
+  const qn=norm(query);if(!qn)return text;
+  // repère le passage cherché dans le texte d'origine (espaces et accents ignorés)
+  const chars=[...text],map=[];let flat="";
+  chars.forEach((c,i)=>{const n=norm(c);for(const _ of n){flat+=_;map.push(i);}});
+  const at=flat.indexOf(qn);if(at<0)return text;
+  const a=map[at],b=map[at+qn.length-1]+1;
+  return [chars.slice(0,a).join(""),el("mark",{},chars.slice(a,b).join("")),chars.slice(b).join("")];
+}
+const qIn=document.getElementById("q"),qClr=document.getElementById("q-clr");
+qIn.addEventListener("input",()=>{query=qIn.value;qClr.hidden=!query;kfilter=null;render();});
+qClr.addEventListener("click",()=>{query="";qIn.value="";qClr.hidden=true;render();qIn.focus();});
+
 /* ---------- Rendu ---------- */
 function render(){
   document.getElementById("v-mine").setAttribute("aria-pressed",String(view==="mine"));
   document.getElementById("v-all").setAttribute("aria-pressed",String(view==="all"));
   document.getElementById("c-all").textContent=JOBS.length+" interventions";
   document.getElementById("c-mine").textContent=me.team?JOBS.filter(j=>j[2]===me.team).length+" interventions":"choisis ton équipe";
-  const scope=JOBS.filter(j=>view==="all"||!me.team||j[2]===me.team);
+  const qn=norm(query);
+  const scope=JOBS.filter(j=>qn?matchJob(j,qn):(view==="all"||!me.team||j[2]===me.team));
+  const qi=document.getElementById("qinfo");qi.hidden=!qn;
+  if(qn)qi.replaceChildren(el("b",{},String(scope.length)),scope.length>1?" interventions trouvées dans tout le planning":" intervention trouvée dans tout le planning");
   const done=scope.filter(j=>st(j[0]).etat==="termine").length;
   const enc=scope.filter(j=>st(j[0]).etat==="encours").length;
   const late=scope.filter(j=>isLate(st(j[0]),j[5])).length;
@@ -314,11 +349,12 @@ function render(){
   const list=scope.filter(pass);
   const out=[];
   if(kfilter)out.push(el("div",{class:"sync"},"Filtre actif · ",el("button",{class:"link",onclick:()=>{kfilter=null;render();}},"Tout afficher")));
-  const zones=view==="all"?["ELY LOOS","Cafein"]:[TEAM[me.team]?.zone||"ELY LOOS"];
+  const wide=view==="all"||!!qn;
+  const zones=wide?["ELY LOOS","Cafein"]:[TEAM[me.team]?.zone||"ELY LOOS"];
   zones.forEach(z=>{
     const zl=list.filter(j=>TEAM[j[2]].zone===z);
     if(!zl.length)return;
-    if(view==="all")out.push(el("div",{class:"band"},z==="Cafein"?"Cafein":"ELY LOOS"));
+    if(wide)out.push(el("div",{class:"band"},z==="Cafein"?"Cafein":"ELY LOOS"));
     const hours=[...new Set(zl.map(j=>j[5]))].sort((a,b)=>a-b);
     let nowPlaced=false;
     hours.forEach(h=>{
@@ -328,7 +364,7 @@ function render(){
     });
     if(!nowPlaced)out.push(nowLine());
   });
-  if(!list.length)out.push(el("div",{class:"empty"},kfilter?"Rien dans ce filtre.":"Aucune intervention."));
+  if(!list.length)out.push(el("div",{class:"empty"},qn?`Aucune intervention pour « ${query.trim()} ». Vérifie le numéro d'OT.`:kfilter?"Rien dans ce filtre.":"Aucune intervention."));
   document.getElementById("list").replaceChildren(...out);
 }
 function nowLine(){const m=nowMin();return el("div",{class:"now"},el("span",{},`${Math.floor(m/60)}h${String(m%60).padStart(2,"0")}`),el("hr"));}
@@ -364,9 +400,9 @@ function card(j){
     el("span",{class:"stripe"}),
     el("div",{class:"in"},
       el("div",{class:"h"},
-        el("div",{class:"ttl"},el("div",{class:"task"},task),
-          el("div",{class:"meta"},el("span",{class:"tm"},"Début "+h+"h"),el("span",{class:"ot"},"OT "+ot),el("span",{},"Repère "+rep)),
-          view==="all"?el("div",{class:"who"},"👷 "+t.who):null),
+        el("div",{class:"ttl"},el("div",{class:"task"},hl(task)),
+          el("div",{class:"meta"},el("span",{class:"tm"},"Début "+h+"h"),el("span",{class:"ot"},"OT ",hl(ot)),el("span",{},"Repère "+rep)),
+          (view==="all"||norm(query))?el("div",{class:"who"},"👷 "+t.who):null),
         el("span",{class:"pill "+pill[0]},pill[1])),
       alert?el("div",{class:"flag"},"⚠ Travaux démarrés sans permis ou sans Stop 5"):null,
       track, action, subs.length?el("div",{class:"sub"},subs):null, note, photoBlock(k,s),
