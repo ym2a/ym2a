@@ -148,10 +148,12 @@ header::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px
 .flag{background:var(--bad);color:#fff;font-size:13px;font-weight:700;padding:8px 10px;border-radius:8px}
 .note{font:inherit;font-size:15px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);width:100%}
 .foot{font-size:12px;color:var(--muted)}
-.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px}
-.photos a{display:block;aspect-ratio:1;max-width:100%;border-radius:10px;overflow:hidden;background:var(--raise);border:1px solid var(--line)}
+.photos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.photos.one{grid-template-columns:1fr}
+.photos.odd a:first-child{grid-column:1/-1}
+.photos a{display:block;aspect-ratio:4/3;max-width:100%;border-radius:10px;overflow:hidden;background:var(--raise);border:1px solid var(--line)}
 .photos img{width:100%;height:100%;object-fit:cover;display:block}
-.photos .up{display:grid;place-items:center;aspect-ratio:1;border-radius:10px;border:1.5px dashed var(--line);color:var(--muted);font-size:12px;text-align:center;padding:4px}
+.photos .up{display:grid;place-items:center;aspect-ratio:4/3;border-radius:10px;border:1.5px dashed var(--line);color:var(--muted);font-size:12px;text-align:center;padding:4px}
 .addphoto{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;border:1.5px dashed var(--act);border-radius:12px;background:none;color:var(--act);font:inherit;font-size:15px;font-weight:700;cursor:pointer;width:100%}
 .addphoto:disabled{opacity:.5;cursor:wait}
 .filein{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
@@ -370,13 +372,13 @@ function card(j){
 }
 function photoBlock(k,s){
   const thumbs=(s.photos||[]).map(id=>el("a",{href:"https://drive.google.com/file/d/"+encodeURIComponent(id)+"/view",target:"_blank",rel:"noopener","aria-label":"Voir la photo"},
-    el("img",{src:"https://drive.google.com/thumbnail?id="+encodeURIComponent(id)+"&sz=w400",alt:"Photo de l'intervention",loading:"lazy"})));
+    el("img",{src:"https://drive.google.com/thumbnail?id="+encodeURIComponent(id)+"&sz=w1200",alt:"Photo de l'intervention",loading:"lazy"})));
   if(uploading[k])thumbs.push(el("div",{class:"up"},"Envoi…"));
   const inp=el("input",{type:"file",accept:"image/*",class:"filein",id:"file-"+k,multiple:true});
   inp.addEventListener("change",()=>{const f=[...inp.files];inp.value="";if(f.length)uploadPhotos(k,f);});
   const btn=el("button",{class:"addphoto",id:"addphoto-"+k,disabled:!!uploading[k],onclick:()=>{if(needName())return;inp.click();}},
     "📷 "+((s.photos||[]).length?"Ajouter une autre photo":"Ajouter une photo"));
-  return el("div",{style:"display:grid;gap:8px"},thumbs.length?el("div",{class:"photos"},thumbs):null,btn,inp);
+  return el("div",{style:"display:grid;gap:8px"},thumbs.length?el("div",{class:"photos"+(thumbs.length===1?" one":thumbs.length%2?" odd":"")},thumbs):null,btn,inp);
 }
 function needName(){if(me.name)return false;toast("Indique d'abord ton nom en haut de la page");window.scrollTo({top:0,behavior:"smooth"});return true;}
 function shrink(file){
