@@ -148,6 +148,13 @@ header::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px
 .flag{background:var(--bad);color:#fff;font-size:13px;font-weight:700;padding:8px 10px;border-radius:8px}
 .note{font:inherit;font-size:15px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);width:100%}
 .foot{font-size:12px;color:var(--muted)}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px}
+.photos a{display:block;aspect-ratio:1;max-width:100%;border-radius:10px;overflow:hidden;background:var(--raise);border:1px solid var(--line)}
+.photos img{width:100%;height:100%;object-fit:cover;display:block}
+.photos .up{display:grid;place-items:center;aspect-ratio:1;border-radius:10px;border:1.5px dashed var(--line);color:var(--muted);font-size:12px;text-align:center;padding:4px}
+.addphoto{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;border:1.5px dashed var(--act);border-radius:12px;background:none;color:var(--act);font:inherit;font-size:15px;font-weight:700;cursor:pointer;width:100%}
+.addphoto:disabled{opacity:.5;cursor:wait}
+.filein{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 
 .band{margin-top:28px;display:flex;align-items:center;gap:10px;font-family:var(--display);font-size:17px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
 .band::before,.band::after{content:"";flex:1;height:2px;background:var(--line)}
@@ -239,7 +246,8 @@ let state={}, me={name:"",team:""}, view="mine", kfilter=null, lastUndo=null, no
 const CODE=Object.fromEntries(Object.entries({afaire:"À faire",encours:"En cours",termine:"Terminé",reporte:"Reporté"}).map(([a,b])=>[b,a]));
 try{if(!DEMO)me=JSON.parse(localStorage.getItem("ely-me")||"null")||me;}catch(e){}
 const nowMin=()=>DEMO?DEMO_NOW:(new Date().getHours()*60+new Date().getMinutes());
-const st=k=>Object.assign({permis:false,stop5:false,etat:"afaire",note:"",by:"",at:""},state[k]||{});
+const st=k=>Object.assign({permis:false,stop5:false,etat:"afaire",note:"",by:"",at:"",photos:[]},state[k]||{});
+let uploading={};
 const isAlert=s=>(s.etat==="encours"||s.etat==="termine")&&(!s.permis||!s.stop5);
 const isLate=(s,h)=>s.etat==="afaire"&&nowMin()>=h*60+15;
 function el(t,a={},...k){const e=document.createElement(t);for(const[x,v]of Object.entries(a)){if(v===false||v==null)continue;if(x==="class")e.className=v;else if(x==="style")e.style.cssText=v;else if(x.startsWith("on"))e.addEventListener(x.slice(2),v);else e.setAttribute(x,v===true?"":v);}k.flat().forEach(c=>c!=null&&c!==false&&e.append(c));return e;}
@@ -357,8 +365,45 @@ function card(j){
           view==="all"?el("div",{class:"who"},"👷 "+t.who):null),
         el("span",{class:"pill "+pill[0]},pill[1])),
       alert?el("div",{class:"flag"},"⚠ Travaux démarrés sans permis ou sans Stop 5"):null,
-      track, action, subs.length?el("div",{class:"sub"},subs):null, note,
+      track, action, subs.length?el("div",{class:"sub"},subs):null, note, photoBlock(k,s),
       (s.by||s.at)?el("div",{class:"foot"},(s.by?`Dernière action : ${s.by}`:"Modifié")+(s.at?` à ${hhmm(s.at)}`:"")):null));
+}
+function photoBlock(k,s){
+  const thumbs=(s.photos||[]).map(id=>el("a",{href:"https://drive.google.com/file/d/"+encodeURIComponent(id)+"/view",target:"_blank",rel:"noopener","aria-label":"Voir la photo"},
+    el("img",{src:"https://drive.google.com/thumbnail?id="+encodeURIComponent(id)+"&sz=w400",alt:"Photo de l'intervention",loading:"lazy"})));
+  if(uploading[k])thumbs.push(el("div",{class:"up"},"Envoi…"));
+  const inp=el("input",{type:"file",accept:"image/*",class:"filein",id:"file-"+k,multiple:true});
+  inp.addEventListener("change",()=>{const f=[...inp.files];inp.value="";if(f.length)uploadPhotos(k,f);});
+  const btn=el("button",{class:"addphoto",id:"addphoto-"+k,disabled:!!uploading[k],onclick:()=>{if(needName())return;inp.click();}},
+    "📷 "+((s.photos||[]).length?"Ajouter une autre photo":"Ajouter une photo"));
+  return el("div",{style:"display:grid;gap:8px"},thumbs.length?el("div",{class:"photos"},thumbs):null,btn,inp);
+}
+function needName(){if(me.name)return false;toast("Indique d'abord ton nom en haut de la page");window.scrollTo({top:0,behavior:"smooth"});return true;}
+function shrink(file){
+  return new Promise((res,rej)=>{
+    const img=new Image(),url=URL.createObjectURL(file);
+    img.onload=()=>{const m=1600,r=Math.min(1,m/Math.max(img.width,img.height));
+      const c=document.createElement("canvas");c.width=Math.round(img.width*r);c.height=Math.round(img.height*r);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg",0.82).split(",")[1]);};
+    img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("image illisible"));};
+    img.src=url;});
+}
+async function uploadPhotos(k,files){
+  if(DEMO){toast("Aperçu : la photo n'est pas envoyée");return;}
+  uploading[k]=true;pending++;render();
+  let ok=0;
+  for(const f of files){
+    try{
+      const data=await shrink(f);
+      const j=await fetch(SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body:JSON.stringify({action:"photo",n:Number(k),type:"image/jpeg",data,by:me.name})}).then(r=>r.json());
+      if(!j.ok)throw new Error(j.error||"refus");
+      const s=st(k);state[k]=Object.assign(s,{photos:[...(s.photos||[]),j.id]});ok++;
+    }catch(e){toast("Photo non envoyée : vérifie le réseau puis réessaie");}
+  }
+  uploading[k]=false;pending--;render();
+  if(ok)toast(ok>1?ok+" photos ajoutées":"Photo ajoutée");
 }
 function back(s){if(s.etat==="termine")return {etat:"encours"};if(s.etat==="encours")return {etat:"afaire"};if(s.stop5)return {stop5:false};return {permis:false};}
 
@@ -383,7 +428,7 @@ async function load(){
   try{
     const j=await fetch(SCRIPT_URL+"?t="+Date.now()).then(r=>r.json());
     if(pending>0)return;
-    const s={};(j.rows||[]).forEach(x=>{s[String(x.n)]={permis:!!x.permis,stop5:!!x.stop5,etat:CODE[x.etat]||"afaire",note:x.note||"",by:x.by||"",at:x.at||""};});
+    const s={};(j.rows||[]).forEach(x=>{s[String(x.n)]={permis:!!x.permis,stop5:!!x.stop5,etat:CODE[x.etat]||"afaire",note:x.note||"",by:x.by||"",at:x.at||"",photos:Array.isArray(x.photos)?x.photos:[]};});
     state=s;render();
     document.getElementById("sync").innerHTML='<i></i>À jour à '+new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})+' · se met à jour tout seul';
   }catch(e){document.getElementById("sync").textContent="Connexion au tableau impossible, nouvel essai dans quelques secondes.";}
