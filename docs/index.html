@@ -50,7 +50,10 @@ header::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px
 .ring .lbl{position:absolute;inset:0;display:grid;place-items:center;text-align:center;line-height:1}
 .ring b{font-family:var(--display);font-size:26px;font-variant-numeric:tabular-nums}
 .ring small{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-top:2px}
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.kpi.done{background:color-mix(in srgb,var(--safety) 30%,transparent)}
+.kpi span{display:block;line-height:1.2}
+@media (max-width:360px){.kpis{grid-template-columns:1fr 1fr}}
 .kpi{border:0;font:inherit;color:inherit;text-align:left;background:rgba(255,255,255,.07);border-radius:10px;padding:8px 10px;cursor:pointer}
 .kpi b{display:block;font-family:var(--display);font-size:24px;line-height:1;font-variant-numeric:tabular-nums}
 .kpi span{font-size:12px;opacity:.8}
@@ -345,15 +348,17 @@ function render(){
   const al=scope.filter(j=>isAlert(st(j[0]))).length;
   document.getElementById("ringn").textContent=`${done}/${scope.length}`;
   document.getElementById("ringc").setAttribute("stroke-dashoffset",String(226.2*(1-(scope.length?done/scope.length:0))));
-  const K=[["encours","En cours",enc,false],["late","En retard",late,late>0],["reste","Reste à faire",scope.length-done-scope.filter(j=>st(j[0]).etat==="reporte").length,false]];
+  const K=[["encours","En cours",enc,false],["late","En retard",late,late>0],["reste","À faire",scope.length-done-scope.filter(j=>st(j[0]).etat==="reporte").length,false]];
   if(al)K.splice(1,1,["alert","Sans permis/Stop 5",al,true]);
-  document.getElementById("kpis").replaceChildren(...K.map(([k,l,n,hot])=>el("button",{class:"kpi"+(hot?" hot":""),"aria-pressed":String(kfilter===k),onclick:()=>{kfilter=kfilter===k?null:k;render();}},el("b",{},String(n)),el("span",{},l))));
+  K.push(["done","Terminées",done,false]);
+  document.getElementById("kpis").replaceChildren(...K.map(([k,l,n,hot])=>el("button",{class:"kpi"+(hot?" hot":"")+(k==="done"?" done":""),"aria-pressed":String(kfilter===k),onclick:()=>{kfilter=kfilter===k?null:k;render();}},el("b",{},String(n)),el("span",{},l))));
 
   const pass=j=>{const s=st(j[0]);if(!kfilter)return true;
     if(kfilter==="encours")return s.etat==="encours";
     if(kfilter==="late")return isLate(s,j[5]);
     if(kfilter==="alert")return isAlert(s);
-    if(kfilter==="reste")return s.etat==="afaire"||s.etat==="encours";return true;};
+    if(kfilter==="reste")return s.etat==="afaire"||s.etat==="encours";
+    if(kfilter==="done")return s.etat==="termine";return true;};
   const list=scope.filter(pass);
   const main=list.filter(j=>st(j[0]).etat!=="termine");
   const doneList=list.filter(j=>st(j[0]).etat==="termine").sort((a,b)=>a[5]-b[5]);
@@ -374,10 +379,10 @@ function render(){
     });
     if(!nowPlaced)out.push(nowLine());
   });
-  if(!main.length&&doneList.length&&!qn)out.push(el("div",{class:"empty"},"✓ Tout est terminé pour cette vue."));
-  else if(!list.length)out.push(el("div",{class:"empty"},qn?`Aucune intervention pour « ${query.trim()} ». Vérifie le numéro d'OT.`:kfilter?"Rien dans ce filtre.":"Aucune intervention."));
+  if(!main.length&&doneList.length&&!qn&&kfilter!=="done")out.push(el("div",{class:"empty"},"✓ Tout est terminé pour cette vue."));
+  else if(!list.length)out.push(el("div",{class:"empty"},kfilter==="done"?"Aucune intervention terminée pour l'instant.":qn?`Aucune intervention pour « ${query.trim()} ». Vérifie le numéro d'OT.`:kfilter?"Rien dans ce filtre.":"Aucune intervention."));
   if(doneList.length){
-    const open=showDone||!!qn;
+    const open=showDone||!!qn||kfilter==="done";
     out.push(el("button",{class:"donehead",id:"donehead","aria-expanded":String(open),onclick:()=>{showDone=!open;try{localStorage.setItem("ely-showdone",showDone?"1":"0");}catch(e){}render();if(showDone)document.getElementById("donehead")?.scrollIntoView({behavior:"smooth",block:"start"});}},
       "✓ Terminées",el("span",{class:"n"},String(doneList.length)),el("span",{class:"chev","aria-hidden":"true"},"▼")));
     if(open)out.push(el("div",{class:"donelist"},doneList.map(card)));
